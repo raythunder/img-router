@@ -65,6 +65,7 @@ interface ApiMartTaskResponse {
 }
 
 const APIMART_RESOLUTIONS = new Set(["1k", "2k", "4k"]);
+const APIMART_DEFAULT_TIMEOUT_MS = 300000;
 
 export class ApiMartProvider extends BaseProvider {
   override readonly name = "ApiMart" as const;
@@ -292,7 +293,10 @@ export class ApiMartProvider extends BaseProvider {
     options: GenerationOptions,
   ): Promise<string[]> {
     const requestId = options.requestId;
-    const timeoutMs = options.timeoutMs || 60000;
+    const timeoutMs = Math.max(
+      options.timeoutMs ?? APIMART_DEFAULT_TIMEOUT_MS,
+      APIMART_DEFAULT_TIMEOUT_MS,
+    );
     const start = Date.now();
     let attempt = 0;
 

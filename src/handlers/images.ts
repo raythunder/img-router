@@ -10,7 +10,12 @@
  * - **Handler 层多图独立扩充**：每张图使用独立的扩充提示词。
  */
 
-import { getPromptOptimizerConfig, getProviderTaskDefaults, getSystemConfig } from "../config/manager.ts";
+import {
+  API_TIMEOUT_MS,
+  getPromptOptimizerConfig,
+  getProviderTaskDefaults,
+  getSystemConfig,
+} from "../config/manager.ts";
 import type { IProvider } from "../providers/base.ts";
 import type {
   GenerationResult,
@@ -129,7 +134,7 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
 
     // 原始 Prompt (用于 Intelligence 处理)
     const originalPrompt = requestBody.prompt || "";
-    
+
     // 用于存储的处理后提示词（在循环外声明，以便后续保存时使用）
     let finalProcessedPrompt = originalPrompt;
 
@@ -144,17 +149,19 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
         // 3.1 提示词优化 (PromptOptimizer Middleware)
         // 获取全局提示词优化配置
         const optimizerConfig = getPromptOptimizerConfig();
-        
+
         // 获取 Provider 的任务默认配置（用于后续的 model、steps、n 等参数）
         const defaults = getProviderTaskDefaults(provider.name, "text");
 
         // 确定要生成的图片数量
-        const imageCount = (defaults.n !== undefined && defaults.n !== null) ? defaults.n : (requestBody.n || 1);
-        
+        const imageCount = (defaults.n !== undefined && defaults.n !== null)
+          ? defaults.n
+          : (requestBody.n || 1);
+
         // 处理 Prompt
         const shouldTranslate = optimizerConfig?.enableTranslate !== false;
         const shouldExpand = optimizerConfig?.enableExpand === true;
-        
+
         // 3.3 获取 Key (提前到扩充前，避免重复获取)
         let currentApiKey = apiKey; // Relay Mode 默认使用用户传入的 Key
 
@@ -181,16 +188,16 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
         if (imageCount > 1) {
           // 多图生成：为每张图独立扩充并调用 Provider
           info("Router", `多图生成模式: 将生成 ${imageCount} 张独立扩充的图片`);
-          
+
           const singleImageResults: GenerationResult[] = [];
           const errors: string[] = [];
-          
+
           // 为每张图独立处理
           for (let i = 1; i <= imageCount; i++) {
             try {
               // 独立扩充每张图的提示词
               let processedPrompt = originalPrompt;
-              
+
               if (shouldTranslate && shouldExpand) {
                 // 场景1: 同时开启翻译+扩充
                 const translated = await promptOptimizerService.processPrompt(originalPrompt, {
@@ -211,12 +218,12 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
                   imageIndex: i,
                 });
               }
-              
+
               // 保存第一张图的处理后提示词（用于存储）
               if (i === 1 && processedPrompt !== originalPrompt) {
                 finalProcessedPrompt = processedPrompt;
               }
-              
+
               // 为单张图准备请求对象
               const singleRequest: ImageGenerationRequest = {
                 ...requestBody,
@@ -226,11 +233,14 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
                 steps: requestBody.steps || defaults.steps || undefined,
                 n: 1, // ← 强制单图生成
               };
-              
+
               // 调用 Provider 生成单张图
               info("Router", `生成图片 ${i}/${imageCount}`);
-              const singleResult = await provider.generate(currentApiKey, singleRequest, { requestId });
-              
+              const singleResult = await provider.generate(currentApiKey, singleRequest, {
+                requestId,
+                timeoutMs: API_TIMEOUT_MS,
+              });
+
               if (singleResult.success) {
                 singleImageResults.push(singleResult);
                 info("Router", `图片 ${i}/${imageCount} 生成成功`);
@@ -244,19 +254,19 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
               error("Router", `图片 ${i}/${imageCount} 生成异常: ${msg}`);
             }
           }
-          
+
           // 汇总结果
           if (singleImageResults.length === 0) {
             throw new Error(`所有图片生成失败。错误信息:\n${errors.join("\n")}`);
           }
-          
+
           info(
             "Router",
             `多图生成完成: 成功 ${singleImageResults.length}/${imageCount} 张${
               errors.length > 0 ? `, 失败 ${errors.length} 张` : ""
             }`,
           );
-          
+
           // 合并所有图片结果
           const allImages = singleImageResults.flatMap((r) => r.images || []);
           successResult = {
@@ -265,13 +275,13 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
             model: targetModel,
             provider: provider.name,
           };
-          
+
           // 成功，跳出 Provider 循环
           break;
         } else {
           // 单图生成：保持原有逻辑
           let processedPrompt = originalPrompt;
-          
+
           if (shouldTranslate && shouldExpand) {
             // 场景1: 同时开启翻译+扩充
             const translated = await promptOptimizerService.processPrompt(originalPrompt, {
@@ -307,7 +317,10 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
           };
 
           // 3.4 执行生成
-          const result = await provider.generate(currentApiKey, generationRequest, { requestId });
+          const result = await provider.generate(currentApiKey, generationRequest, {
+            requestId,
+            timeoutMs: API_TIMEOUT_MS,
+          });
 
           if (result.success) {
             successResult = result;
@@ -369,15 +382,20 @@ export async function handleImagesGenerations(req: Request): Promise<Response> {
         if (base64ToSave) {
           // 异步保存，不阻塞响应
           // 使用处理后的提示词（翻译/扩充后的版本）
-          storageService.saveImage(base64ToSave, {
-            prompt: finalProcessedPrompt,  // ✅ 使用处理后的提示词
-            model: requestBody.model || "unknown",
-            params: {
-              size: requestBody.size,
-              n: requestBody.n,
-              steps: requestBody.steps,
+          storageService.saveImage(
+            base64ToSave,
+            {
+              prompt: finalProcessedPrompt, // ✅ 使用处理后的提示词
+              model: requestBody.model || "unknown",
+              params: {
+                size: requestBody.size,
+                n: requestBody.n,
+                steps: requestBody.steps,
+              },
             },
-          }, "png", i).then((filename: string | null) => {
+            "png",
+            i,
+          ).then((filename: string | null) => {
             if (filename) info("Storage", `Auto-saved image: ${filename}`);
           });
         }

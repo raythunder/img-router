@@ -481,7 +481,7 @@ export const MODELSCOPE_SIZES = [
 const DEFAULT_CONFIG: AppConfig = {
   server: {
     port: 10001,
-    apiTimeoutMs: 60000,
+    apiTimeoutMs: 300000,
     maxRequestBodySize: 20971520, // 20MB
     globalAccessKey: "",
     compress: {
@@ -758,7 +758,7 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
       backend: false,
     },
     port: 10001,
-    apiTimeout: 60000,
+    apiTimeout: 300000,
     maxBodySize: 20971520,
     cors: true,
     globalAccessKey: "", // 移除敏感key

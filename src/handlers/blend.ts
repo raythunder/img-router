@@ -13,6 +13,7 @@
  */
 
 import {
+  API_TIMEOUT_MS,
   getNextAvailableKey,
   getPromptOptimizerConfig,
   getProviderTaskDefaults,
@@ -123,7 +124,9 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
     if (usingBackendMode) {
       // 获取启用的 Provider 列表
       const runtimeConfig = getRuntimeConfig();
-      const providersConfig = runtimeConfig.providers as Record<string, RuntimeProviderConfig> | undefined;
+      const providersConfig = runtimeConfig.providers as
+        | Record<string, RuntimeProviderConfig>
+        | undefined;
       const enabledProviders = Object.entries(providersConfig || {})
         .filter(([_name, cfg]) => cfg.enabled === true)
         .map(([name]) => name as ProviderName);
@@ -154,20 +157,23 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
 
       // 尝试解析模型映射（按优先级尝试所有任务类型）
       let mappingResult = await providerRegistry.resolveModelMapping(requestBody.model, "blend");
-      
+
       if (!mappingResult) {
         mappingResult = await providerRegistry.resolveModelMapping(requestBody.model, "text");
       }
-      
+
       if (!mappingResult) {
         mappingResult = await providerRegistry.resolveModelMapping(requestBody.model, "edit");
       }
-      
+
       if (mappingResult) {
         // 找到了映射，使用映射的 Provider 和实际模型名
         provider = mappingResult.provider;
         requestBody.model = mappingResult.actualModel; // 更新为实际模型名
-        info("HTTP", `模型映射: ${requestBody.model} -> ${mappingResult.actualModel} (Provider: ${provider.name})`);
+        info(
+          "HTTP",
+          `模型映射: ${requestBody.model} -> ${mappingResult.actualModel} (Provider: ${provider.name})`,
+        );
       } else {
         // 没有找到映射，尝试直接匹配模型名
         provider = providerRegistry.getProviderByModel(requestBody.model);
@@ -245,18 +251,20 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
     try {
       const optimizerConfig = getPromptOptimizerConfig();
       const defaults = getProviderTaskDefaults(provider.name, "blend");
-      const imageCount = (defaults.n !== undefined && defaults.n !== null) ? defaults.n : (requestBody.n || 1);
-      
+      const imageCount = (defaults.n !== undefined && defaults.n !== null)
+        ? defaults.n
+        : (requestBody.n || 1);
+
       const shouldTranslate = optimizerConfig?.enableTranslate !== false;
       const shouldExpand = optimizerConfig?.enableExpand === true;
-      
+
       // 根据不同场景处理提示词优化（与 images.ts 逻辑一致）
       if (shouldTranslate && shouldExpand) {
         // 场景1: 同时开启翻译+扩充
         if (imageCount > 1) {
           // 多图：先为每张图翻译，然后对每个翻译结果扩充
           const translatedPrompts: string[] = [];
-          
+
           // 步骤1: 为每张图翻译（调用 n 次）
           for (let i = 1; i <= imageCount; i++) {
             const translated = await promptOptimizerService.processPrompt(originalPrompt, {
@@ -266,7 +274,7 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
             });
             translatedPrompts.push(translated);
           }
-          
+
           // 步骤2: 对每个翻译结果扩充（再调用 n 次）
           for (let i = 1; i <= imageCount; i++) {
             const expanded = await promptOptimizerService.processPrompt(translatedPrompts[i - 1], {
@@ -314,7 +322,7 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
         }
       }
       // 场景3: 都未开启 → processedPrompt 保持为 originalPrompt
-      
+
       // 如果提示词被优化了，更新 messages 中的文本内容
       if (processedPrompt !== originalPrompt && requestBody.messages.length > 0) {
         // 找到第一个包含文本的 message 并更新
@@ -378,7 +386,10 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
       }
 
       try {
-        const generationResult = await provider.blend(apiKey, requestBody, { requestId });
+        const generationResult = await provider.blend(apiKey, requestBody, {
+          requestId,
+          timeoutMs: API_TIMEOUT_MS,
+        });
 
         if (generationResult.success) {
           successResult = generationResult;
@@ -442,17 +453,22 @@ export async function handleImagesBlend(req: Request): Promise<Response> {
       const img = images[i];
       if (img.b64_json) {
         try {
-          await storageService.saveImage(img.b64_json, {
-            prompt: processedPrompt,
-            model: requestBody.model || "blend",
-            seed: 0,
-            params: {
-              task: "blend",
-              originalPrompt: originalPrompt !== processedPrompt ? originalPrompt : undefined,
-              provider: provider.name,
-              requestId,
+          await storageService.saveImage(
+            img.b64_json,
+            {
+              prompt: processedPrompt,
+              model: requestBody.model || "blend",
+              seed: 0,
+              params: {
+                task: "blend",
+                originalPrompt: originalPrompt !== processedPrompt ? originalPrompt : undefined,
+                provider: provider.name,
+                requestId,
+              },
             },
-          }, "png", i);
+            "png",
+            i,
+          );
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           error("Storage", `保存图片失败: ${msg}`);

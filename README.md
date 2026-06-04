@@ -197,7 +197,7 @@ lianwusuoai/img-router:latest
 **常用环境变量**（与实现保持一致）：
 
 - `PORT`：服务端口（默认 10001）
-- `API_TIMEOUT_MS`：上游请求超时（默认 60000）
+- `API_TIMEOUT_MS`：上游请求超时（默认 300000，即 5 分钟）
 - `LOG_LEVEL`：日志等级（默认 info）
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理端登录账号和密码；两者同时非空时启用管理页登录保护
 - `DOUBAO_DEFAULT_COUNT`：Doubao 默认生成张数（默认 1）

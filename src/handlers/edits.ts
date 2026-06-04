@@ -17,7 +17,13 @@
  * - `mask` 参数虽然被解析，但目前的 Provider 实现大多不支持或通过其他方式（如 Alpha 通道）支持，因此暂未强依赖。
  */
 
-import { getPromptOptimizerConfig, getProviderTaskDefaults, getRuntimeConfig, getSystemConfig } from "../config/manager.ts";
+import {
+  API_TIMEOUT_MS,
+  getPromptOptimizerConfig,
+  getProviderTaskDefaults,
+  getRuntimeConfig,
+  getSystemConfig,
+} from "../config/manager.ts";
 import type {
   ImageData,
   ImageGenerationRequest,
@@ -28,7 +34,12 @@ import type {
 import type { IProvider, ProviderName } from "../providers/base.ts";
 import type { RuntimeProviderConfig } from "../config/manager.ts";
 import { providerRegistry } from "../providers/registry.ts";
-import { buildDataUri, normalizeAndCompressInputImages, uint8ArrayToBase64, urlToBase64 } from "../utils/image.ts";
+import {
+  buildDataUri,
+  normalizeAndCompressInputImages,
+  uint8ArrayToBase64,
+  urlToBase64,
+} from "../utils/image.ts";
 import { debug, error, generateRequestId, info } from "../core/logger.ts";
 import { extractPromptAndImages, normalizeMessageContent } from "./chat.ts";
 import { promptOptimizerService } from "../core/prompt-optimizer.ts";
@@ -74,7 +85,10 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
   const systemConfig = getSystemConfig();
   const modes = systemConfig.modes || { relay: true, backend: false };
 
-  debug("HTTP", `[${requestId}] Images Edit 请求开始 - Modes: relay=${modes.relay}, backend=${modes.backend}`);
+  debug(
+    "HTTP",
+    `[${requestId}] Images Edit 请求开始 - Modes: relay=${modes.relay}, backend=${modes.backend}`,
+  );
 
   // 0. 检查系统是否完全关闭
   if (!modes.relay && !modes.backend) {
@@ -89,13 +103,21 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
   const authHeader = req.headers.get("Authorization");
   const apiKey = authHeader?.replace("Bearer ", "").trim() || "";
 
-  debug("HTTP", `[${requestId}] API Key 长度: ${apiKey.length}, 前缀: ${apiKey.substring(0, Math.min(10, apiKey.length))}...`);
+  debug(
+    "HTTP",
+    `[${requestId}] API Key 长度: ${apiKey.length}, 前缀: ${
+      apiKey.substring(0, Math.min(10, apiKey.length))
+    }...`,
+  );
 
   // 尝试检测 Provider (基于 Key 格式) - Relay Mode
   let detectedProvider: IProvider | undefined;
   try {
     detectedProvider = providerRegistry.detectProvider(apiKey);
-    debug("HTTP", `[${requestId}] detectProvider 结果: ${detectedProvider ? detectedProvider.name : 'null'}`);
+    debug(
+      "HTTP",
+      `[${requestId}] detectProvider 结果: ${detectedProvider ? detectedProvider.name : "null"}`,
+    );
   } catch (detectError) {
     const msg = detectError instanceof Error ? detectError.message : String(detectError);
     error("HTTP", `[${requestId}] detectProvider 抛出异常: ${msg}`);
@@ -119,7 +141,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
   } else {
     // Backend Mode
     debug("HTTP", `[${requestId}] 未检测到 Provider Key，尝试 Backend Mode`);
-    
+
     if (!modes.backend) {
       error("HTTP", `[${requestId}] Backend mode 已禁用，且未检测到有效的 Provider Key`);
       return new Response(JSON.stringify({ error: "Invalid API Key" }), {
@@ -140,12 +162,14 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
     // 需要先解析请求获取 model，然后再进行路由
     // 暂时先获取第一个启用的 Provider 作为默认值
     const runtimeConfig = getRuntimeConfig();
-    const providersConfig = runtimeConfig.providers as Record<string, RuntimeProviderConfig> | undefined;
+    const providersConfig = runtimeConfig.providers as
+      | Record<string, RuntimeProviderConfig>
+      | undefined;
     const enabledProviders = Object.entries(providersConfig || {})
       .filter(([_name, cfg]) => (cfg as RuntimeProviderConfig).enabled === true)
       .map(([name]) => name as ProviderName);
 
-    debug("HTTP", `[${requestId}] 启用的 Providers: ${enabledProviders.join(', ')}`);
+    debug("HTTP", `[${requestId}] 启用的 Providers: ${enabledProviders.join(", ")}`);
 
     if (enabledProviders.length === 0) {
       error("HTTP", `[${requestId}] Backend mode: 没有启用的 Provider`);
@@ -184,7 +208,12 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
       debug("HTTP", `[${requestId}] 从 Key 池获取 Token: ${actualApiKey.substring(0, 10)}...`);
     }
 
-    info("HTTP", `[${requestId}] 后端模式: 路由到 ${provider.name} (Images Edit), Key池状态: ${actualApiKey ? "有可用Key" : "使用内部Key"}`);
+    info(
+      "HTTP",
+      `[${requestId}] 后端模式: 路由到 ${provider.name} (Images Edit), Key池状态: ${
+        actualApiKey ? "有可用Key" : "使用内部Key"
+      }`,
+    );
   }
 
   if (!provider) {
@@ -294,25 +323,28 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
     // 2.5. 后端模式下的模型映射路由
     if (!detectedProvider && modes.backend && model) {
       debug("HTTP", `[${requestId}] 后端模式: 尝试根据 model 参数进行映射路由: ${model}`);
-      
+
       // 尝试模型映射（按优先级尝试所有任务类型）
       let mappingResult = await providerRegistry.resolveModelMapping(model, "edit");
-      
+
       if (!mappingResult) {
         mappingResult = await providerRegistry.resolveModelMapping(model, "text");
       }
-      
+
       if (!mappingResult) {
         mappingResult = await providerRegistry.resolveModelMapping(model, "blend");
       }
-      
+
       if (mappingResult) {
         provider = mappingResult.provider;
         const originalModel = model;
         model = mappingResult.actualModel;
-        
-        info("HTTP", `[${requestId}] 模型映射: ${originalModel} -> ${mappingResult.actualModel} (Provider: ${provider.name})`);
-        
+
+        info(
+          "HTTP",
+          `[${requestId}] 模型映射: ${originalModel} -> ${mappingResult.actualModel} (Provider: ${provider.name})`,
+        );
+
         // 重新获取 API Key
         if (provider.name === "HuggingFace") {
           actualApiKey = "";
@@ -329,7 +361,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
           actualApiKey = token;
           debug("HTTP", `[${requestId}] 从 Key 池获取 Token: ${actualApiKey.substring(0, 10)}...`);
         }
-        
+
         info("HTTP", `[${requestId}] 后端模式: 模型映射后路由到 ${provider.name} (Images Edit)`);
       } else {
         debug("HTTP", `[${requestId}] 未找到模型映射，使用默认 Provider: ${provider.name}`);
@@ -351,22 +383,22 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
     // 3. 提示词优化
     const originalPrompt = prompt;
     let processedPrompt = prompt;
-    
+
     try {
       const optimizerConfig = getPromptOptimizerConfig();
       const defaults = getProviderTaskDefaults(provider.name, "edit");
       const imageCount = (defaults.n !== undefined && defaults.n !== null) ? defaults.n : 1;
-      
+
       const shouldTranslate = optimizerConfig?.enableTranslate !== false;
       const shouldExpand = optimizerConfig?.enableExpand === true;
-      
+
       // 根据不同场景处理提示词优化（与 images.ts 逻辑一致）
       if (shouldTranslate && shouldExpand) {
         // 场景1: 同时开启翻译+扩充
         if (imageCount > 1) {
           // 多图：先为每张图翻译，然后对每个翻译结果扩充
           const translatedPrompts: string[] = [];
-          
+
           // 步骤1: 为每张图翻译（调用 n 次）
           for (let i = 1; i <= imageCount; i++) {
             const translated = await promptOptimizerService.processPrompt(prompt, {
@@ -376,7 +408,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
             });
             translatedPrompts.push(translated);
           }
-          
+
           // 步骤2: 对每个翻译结果扩充（再调用 n 次）
           for (let i = 1; i <= imageCount; i++) {
             const expanded = await promptOptimizerService.processPrompt(translatedPrompts[i - 1], {
@@ -436,7 +468,9 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
 
     debug(
       "Router",
-      `Images Edit Prompt: ${processedPrompt.substring(0, 80)}... (完整长度: ${processedPrompt.length})`,
+      `Images Edit Prompt: ${
+        processedPrompt.substring(0, 80)
+      }... (完整长度: ${processedPrompt.length})`,
     );
     debug("Router", `Images Edit 图片数量: ${images.length}`);
 
@@ -465,6 +499,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
     const generationResult = await provider.generate(actualApiKey, generationRequest, {
       requestId,
       returnBase64: responseFormat === "b64_json",
+      timeoutMs: API_TIMEOUT_MS,
     });
 
     if (!generationResult.success) {
@@ -473,22 +508,27 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
 
     // 6. 存储生成的图片
     const output: ImageData[] = generationResult.images || [];
-    
+
     for (let i = 0; i < output.length; i++) {
       const img = output[i];
       if (img.b64_json) {
         try {
-          await storageService.saveImage(img.b64_json, {
-            prompt: processedPrompt,
-            model: model || "edit",
-            seed: 0,
-            params: {
-              task: "edit",
-              originalPrompt: originalPrompt !== processedPrompt ? originalPrompt : undefined,
-              provider: provider.name,
-              requestId,
+          await storageService.saveImage(
+            img.b64_json,
+            {
+              prompt: processedPrompt,
+              model: model || "edit",
+              seed: 0,
+              params: {
+                task: "edit",
+                originalPrompt: originalPrompt !== processedPrompt ? originalPrompt : undefined,
+                provider: provider.name,
+                requestId,
+              },
             },
-          }, "png", i);
+            "png",
+            i,
+          );
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           error("Storage", `保存图片失败: ${msg}`);
