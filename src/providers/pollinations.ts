@@ -9,7 +9,6 @@
  * 3. 图生图需要将图片 URL 作为参数传递。
  */
 
-import { encodeBase64 } from "@std/encoding/base64";
 import {
   BaseProvider,
   type GenerationOptions,
@@ -32,6 +31,7 @@ import {
 } from "../config/manager.ts";
 import { getProviderTaskDefaults } from "../config/manager.ts";
 import { fetchWithTimeout } from "../utils/http.ts";
+import { uint8ArrayToBase64 } from "../utils/image.ts";
 import { error, info } from "../core/logger.ts";
 import { parseErrorMessage } from "../core/error-handler.ts";
 import {
@@ -443,7 +443,7 @@ export class PollinationsProvider extends BaseProvider {
       }
     }
 
-    const base64 = encodeBase64(uint8Array);
+    const base64 = uint8ArrayToBase64(uint8Array);
     return `data:${mimeType};base64,${base64}`;
   }
 
@@ -573,7 +573,7 @@ export class PollinationsProvider extends BaseProvider {
       }
     }
 
-    const base64 = encodeBase64(uint8Array);
+    const base64 = uint8ArrayToBase64(uint8Array);
     return `data:${mimeType};base64,${base64}`;
   }
 }

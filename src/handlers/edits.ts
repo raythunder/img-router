@@ -17,7 +17,6 @@
  * - `mask` 参数虽然被解析，但目前的 Provider 实现大多不支持或通过其他方式（如 Alpha 通道）支持，因此暂未强依赖。
  */
 
-import { encodeBase64 } from "@std/encoding/base64";
 import { getPromptOptimizerConfig, getProviderTaskDefaults, getRuntimeConfig, getSystemConfig } from "../config/manager.ts";
 import type {
   ImageData,
@@ -29,7 +28,7 @@ import type {
 import type { IProvider, ProviderName } from "../providers/base.ts";
 import type { RuntimeProviderConfig } from "../config/manager.ts";
 import { providerRegistry } from "../providers/registry.ts";
-import { buildDataUri, normalizeAndCompressInputImages, urlToBase64 } from "../utils/image.ts";
+import { buildDataUri, normalizeAndCompressInputImages, uint8ArrayToBase64, urlToBase64 } from "../utils/image.ts";
 import { debug, error, generateRequestId, info } from "../core/logger.ts";
 import { extractPromptAndImages, normalizeMessageContent } from "./chat.ts";
 import { promptOptimizerService } from "../core/prompt-optimizer.ts";
@@ -47,7 +46,7 @@ import { keyManager } from "../core/key-manager.ts";
 async function fileToDataUri(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const uint8Array = new Uint8Array(arrayBuffer);
-  const base64 = encodeBase64(uint8Array);
+  const base64 = uint8ArrayToBase64(uint8Array);
   const mimeType = file.type || "image/png";
   return buildDataUri(base64, mimeType);
 }
@@ -204,6 +203,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
     let prompt = "";
     let model: string | undefined;
     let size: string | undefined;
+    let resolution: string | undefined;
     let steps: number | undefined;
     let responseFormat: "url" | "b64_json" = "url";
     const images: string[] = [];
@@ -215,6 +215,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
       prompt = (formData.get("prompt") as string) || "";
       model = (formData.get("model") as string) || undefined;
       size = (formData.get("size") as string) || undefined;
+      resolution = (formData.get("resolution") as string) || undefined;
       const stepsVal = formData.get("steps");
       if (stepsVal) steps = Number(stepsVal);
 
@@ -260,6 +261,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
 
         model = typeof jsonBody.model === "string" ? jsonBody.model : undefined;
         size = typeof jsonBody.size === "string" ? jsonBody.size : undefined;
+        resolution = typeof jsonBody.resolution === "string" ? jsonBody.resolution : undefined;
 
         const rf = jsonBody.response_format;
         if (typeof rf === "string" && (rf === "url" || rf === "b64_json")) {
@@ -272,6 +274,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
         prompt = body?.prompt || "";
         model = body?.model;
         size = body?.size;
+        resolution = body?.resolution;
         steps = body?.steps;
 
         if (body?.response_format) {
@@ -443,6 +446,7 @@ export async function handleImagesEdits(req: Request): Promise<Response> {
       images: compressedImages,
       model,
       size,
+      resolution,
       steps: steps || defaults.steps || undefined,
       n: (defaults.n !== undefined && defaults.n !== null) ? defaults.n : undefined,
       response_format: responseFormat,
