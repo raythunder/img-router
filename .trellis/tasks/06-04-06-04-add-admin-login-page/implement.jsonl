@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端路由、配置和管理 API 分层约束"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "鉴权变更的质量和验证要求"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新增登录页面和 SPA 路由时需要遵循的前端结构"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "登录态、localStorage 和 API 请求状态边界"}
