@@ -338,15 +338,25 @@ async function loadKeys(provider) {
                     <div style="font-size: 12px; color: var(--text-secondary);">上次: ${lastUsed}</div>
                 </td>
                 <td style="padding: 16px 24px; text-align: right;">
-                    ${provider === "NewApi" ? `
-                    <button class="btn icon-btn" onclick="globalThis.testNewApiKey('${escapeHtml(k.id)}')" title="测试" style="color: var(--success); margin-right: 8px;">
+                    ${
+        provider === "NewApi"
+          ? `
+                    <button class="btn icon-btn" onclick="globalThis.testNewApiKey('${
+            escapeHtml(k.id)
+          }')" title="测试" style="color: var(--success); margin-right: 8px;">
                         <i class="ri-flask-line"></i>
                     </button>
-                    ` : ''}
-                    <button class="btn icon-btn" onclick="globalThis.showEditKeyModal('${escapeHtml(k.id)}')" title="编辑" style="color: var(--primary); margin-right: 8px;">
+                    `
+          : ""
+      }
+                    <button class="btn icon-btn" onclick="globalThis.showEditKeyModal('${
+        escapeHtml(k.id)
+      }')" title="编辑" style="color: var(--primary); margin-right: 8px;">
                         <i class="ri-edit-line"></i>
                     </button>
-                    <button class="btn icon-btn" onclick="globalThis.deleteKey('${escapeHtml(k.id)}')" title="删除" style="color: var(--error);">
+                    <button class="btn icon-btn" onclick="globalThis.deleteKey('${
+        escapeHtml(k.id)
+      }')" title="删除" style="color: var(--error);">
                         <i class="ri-delete-bin-line"></i>
                     </button>
                 </td>
@@ -429,7 +439,7 @@ function showAddKeyModal() {
   document.getElementById("addKeyModal").classList.add("active");
   document.getElementById("newKeyName").value = "";
   document.getElementById("newKeyVal").value = "";
-  
+
   // 显示/隐藏 NewApi 特殊字段
   const newApiFields = document.getElementById("newApiFields");
   if (newApiFields) {
@@ -460,19 +470,19 @@ async function confirmAddKey() {
   if (currentProvider === "NewApi") {
     baseUrl = document.getElementById("newKeyBaseUrl")?.value.trim() || "";
     const modelsStr = document.getElementById("newKeyModels")?.value.trim() || "";
-    
+
     if (!baseUrl) {
       alert("请输入 API Base URL");
       return;
     }
-    
-    models = modelsStr ? modelsStr.split(",").map(m => m.trim()).filter(m => m) : [];
+
+    models = modelsStr ? modelsStr.split(",").map((m) => m.trim()).filter((m) => m) : [];
   }
 
   const lines = rawKeys.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  // 验证 Key 格式（NewApi 跳过格式验证）
-  if (currentProvider !== "NewApi") {
+  // 验证 Key 格式（NewApi / ApiMart 跳过格式验证，避免通用 sk- 误判）
+  if (currentProvider !== "NewApi" && currentProvider !== "ApiMart") {
     const invalidKeys = [];
     for (const k of lines) {
       if (!detectApiKey(k, currentProvider)) {
@@ -494,13 +504,13 @@ async function confirmAddKey() {
     // 如果只有一行且有名字，按单个添加
     if (lines.length === 1 && name) {
       const keyItem = { key: lines[0], name: name };
-      
+
       // NewApi 添加特殊字段
       if (currentProvider === "NewApi") {
         keyItem.baseUrl = baseUrl;
         keyItem.models = models;
       }
-      
+
       const res = await apiFetch("/api/key-pool", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -542,10 +552,10 @@ async function showEditKeyModal(id) {
     // 通过新接口获取完整的 Key 信息（不脱敏）
     const res = await apiFetch(`/api/key-pool?provider=${currentProvider}&id=${id}`);
     if (!res.ok) throw new Error("获取 Key 信息失败");
-    
+
     const data = await res.json();
     const key = data.keyItem;
-    
+
     if (!key) {
       alert("未找到该 Key");
       return;
@@ -565,8 +575,9 @@ async function showEditKeyModal(id) {
         // 完整显示 baseUrl
         document.getElementById("editKeyBaseUrl").value = key.baseUrl || "";
         // 完整显示 models，逗号+空格分隔
-        document.getElementById("editKeyModels").value =
-          (key.models && Array.isArray(key.models)) ? key.models.join(", ") : "";
+        document.getElementById("editKeyModels").value = (key.models && Array.isArray(key.models))
+          ? key.models.join(", ")
+          : "";
       }
     }
   } catch (e) {
@@ -594,14 +605,14 @@ async function confirmEditKey() {
   if (currentProvider === "NewApi") {
     const baseUrl = document.getElementById("editKeyBaseUrl")?.value.trim() || "";
     const modelsStr = document.getElementById("editKeyModels")?.value.trim() || "";
-    
+
     if (!baseUrl) {
       alert("请输入 API Base URL");
       return;
     }
-    
+
     keyItem.baseUrl = baseUrl;
-    keyItem.models = modelsStr ? modelsStr.split(",").map(m => m.trim()).filter(m => m) : [];
+    keyItem.models = modelsStr ? modelsStr.split(",").map((m) => m.trim()).filter((m) => m) : [];
   }
 
   try {
@@ -637,10 +648,10 @@ async function testNewApiKey(id) {
     // 获取 Key 信息
     const res = await apiFetch(`/api/key-pool?provider=${currentProvider}&id=${id}`);
     if (!res.ok) throw new Error("获取 Key 信息失败");
-    
+
     const data = await res.json();
     const key = data.keyItem;
-    
+
     if (!key || !key.baseUrl || !key.key) {
       alert("Key 信息不完整，无法测试");
       return;
@@ -662,9 +673,13 @@ async function testNewApiKey(id) {
     }
 
     const result = await testRes.json();
-    
+
     if (result.ok) {
-      alert(`✅ 测试成功！\n\n找到 ${result.models.length} 个模型：\n${result.models.slice(0, 10).join(", ")}${result.models.length > 10 ? "\n..." : ""}`);
+      alert(
+        `✅ 测试成功！\n\n找到 ${result.models.length} 个模型：\n${
+          result.models.slice(0, 10).join(", ")
+        }${result.models.length > 10 ? "\n..." : ""}`,
+      );
     } else {
       alert(`❌ 测试失败：${result.error}`);
     }
@@ -706,7 +721,7 @@ async function testNewApiConnection() {
     }
 
     const result = await testRes.json();
-    
+
     if (result.ok) {
       // 自动填充模型列表
       const modelsInput = document.getElementById("newKeyModels");
@@ -755,7 +770,7 @@ async function testEditNewApiConnection() {
     }
 
     const result = await testRes.json();
-    
+
     if (result.ok) {
       // 自动填充模型列表
       const modelsInput = document.getElementById("editKeyModels");

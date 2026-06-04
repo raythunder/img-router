@@ -16,6 +16,8 @@ export const providerMeta = {
   "ModelScope": { icon: "ri-cloud-line", color: "#624aff", desc: "魔搭社区" },
   "HuggingFace": { icon: "ri-bear-smile-line", color: "#ffeb3b", desc: "HF Spaces" },
   "Pollinations": { icon: "ri-plant-line", color: "#4caf50", desc: "免费开源生成" },
+  "NewApi": { icon: "ri-router-line", color: "#0ea5e9", desc: "OpenAI 兼容网关" },
+  "ApiMart": { icon: "ri-store-2-line", color: "#2563eb", desc: "ApiMart gpt-image-2" },
 };
 
 /**
@@ -67,6 +69,11 @@ export function detectApiKey(apiKey, provider) {
     case "Pollinations":
       // 以 pk_ 或 sk_ 开头
       return apiKey.startsWith("pk_") || apiKey.startsWith("sk_");
+    case "NewApi":
+      return apiKey.startsWith("sk-newapi-") || (apiKey.startsWith("sk-") && apiKey.length > 40);
+    case "ApiMart":
+      // ApiMart 常见 Key 形态可能与 sk- 系渠道冲突，前端不做裸 Key 自动识别
+      return false;
     default:
       return false;
   }

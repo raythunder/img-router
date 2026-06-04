@@ -20,6 +20,8 @@ export type ProviderType =
   | "ModelScope" // 阿里魔搭社区
   | "HuggingFace" // Hugging Face Spaces
   | "Pollinations" // Pollinations AI
+  | "NewApi" // OpenAI 兼容网关
+  | "ApiMart" // ApiMart
   | "Unknown"; // 未知提供商
 
 /**

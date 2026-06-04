@@ -1,18 +1,25 @@
 # ImgRouter
 
-> 🎨 智能AI 图像生成网关 — 基于 Deno 构建的高性能 OpenAI 兼容服务，聚合多平台 AI 绘图能力，提供智能路由、Key 池管理和完整的可视化运维方案。
+> 🎨 智能AI 图像生成网关 — 基于 Deno 构建的高性能 OpenAI 兼容服务，聚合多平台 AI
+> 绘图能力，提供智能路由、Key 池管理和完整的可视化运维方案。
 
-[![Deno](https://img.shields.io/badge/Deno-2.x-000000?logo=deno)](https://deno.land/) [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/lianwusuoai/img-router)
+[![Deno](https://img.shields.io/badge/Deno-2.x-000000?logo=deno)](https://deno.land/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/lianwusuoai/img-router)
 
 ## 📖 项目概述
 
-ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家 AI 图像服务平台（豆包/火山引擎、Gitee 模力方舟、ModelScope 魔搭、HuggingFace、Pollinations）聚合到统一的 OpenAI 兼容接口，为开发者提供：
+ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家 AI 图像服务平台（豆包/火山引擎、Gitee
+模力方舟、ModelScope 魔搭、HuggingFace、Pollinations、ApiMart）聚合到统一的 OpenAI
+兼容接口，为开发者提供：
 
 ### 🎯 核心价值
 
-- **🔌 统一接口**：完全兼容 OpenAI API 规范，支持 `/v1/chat/completions`、`/v1/images/*` 等标准端点，零成本接入现有生态
+- **🔌 统一接口**：完全兼容 OpenAI API 规范，支持 `/v1/chat/completions`、`/v1/images/*`
+  等标准端点，零成本接入现有生态
 - **🚀 智能路由**：
-  - **中转模式**：自动识别 API Key 格式（hf_*、ms-*、UUID 等），智能路由到对应平台
+  - **中转模式**：自动识别 API Key 格式（`hf_*`、`ms-*`、UUID 等），智能路由到对应平台
   - **后端模式**：基于权重的级联故障转移，从 Key 池自动选择可用渠道
   - **模型映射**：支持自定义模型 ID 映射，实现统一入口的灵活调度
 - **💼 多功能**：
@@ -33,7 +40,7 @@ ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家
 - **双模式运行** - 中转模式（Provider Key 透传）/ 后端模式（Global Key + Key 池路由）
 - **智能路由** - API Key 格式识别 + 权重级联路由 + 模型映射（modelMap）
 - **多渠道支持** -
-  豆包（火山引擎）、Gitee（模力方舟）、ModelScope（魔搭）、HuggingFace、Pollinations
+  豆包（火山引擎）、Gitee（模力方舟）、ModelScope（魔搭）、HuggingFace、Pollinations、ApiMart
 - **OpenAI 完全兼容** - 支持
   `/v1/chat/completions`、`/v1/images/generations`、`/v1/images/edits`、`/v1/images/blend`、`/v1/models`
 - **流式响应** - Chat Completions 支持 `stream=true`（SSE）；管理端支持 `/api/logs/stream`（SSE）
@@ -44,27 +51,26 @@ ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家
 - **详细日志** - 请求/响应全链路日志（含 RequestId），并提供实时日志流订阅
 
 ## 🏗️ 架构设计
+
 ![架构设计](docs/介绍/架构设计.png)
 
 ### WebUi
 
-![仪表盘](docs/介绍/仪表盘.jpg)
-![系统设置](docs/介绍/系统设置.jpg)
-![渠道设置](docs/介绍/渠道设置.jpg)
-![key池管理](docs/介绍/key池管理.jpg)
-![图片画廊](docs/介绍/图片画廊.jpg)
-![提示词优化器](docs/介绍/提示词优化器.jpg)
+![仪表盘](docs/介绍/仪表盘.jpg) ![系统设置](docs/介绍/系统设置.jpg)
+![渠道设置](docs/介绍/渠道设置.jpg) ![key池管理](docs/介绍/key池管理.jpg)
+![图片画廊](docs/介绍/图片画廊.jpg) ![提示词优化器](docs/介绍/提示词优化器.jpg)
 ![检查更新](docs/介绍/检查更新.jpg)
 
 ### 🔑 API Key 自动识别规则（中转模式）
 
-| Key 格式 | 识别规则 | Provider | 示例 |
-|---------|---------|----------|------|
-| **HuggingFace** | `hf_` 开头 | HuggingFace 抱抱脸 | `hf_xxxxx...` |
-| **ModelScope** | `ms-` 开头 | ModelScope 魔搭 | `ms-xxxxx...` |
-| **Pollinations** | `pk_*` 或 `sk_*` 开头 | Pollinations | `pk_xxxxx...` |
-| **Doubao** | UUID 格式 (8-4-4-4-12) | 火山引擎/豆包 | `12345678-1234-...` |
-| **Gitee** | 30-60 位字母数字 | 模力方舟 | `abcd1234efgh...` |
+| Key 格式         | 识别规则               | Provider           | 示例                |
+| ---------------- | ---------------------- | ------------------ | ------------------- |
+| **HuggingFace**  | `hf_` 开头             | HuggingFace 抱抱脸 | `hf_xxxxx...`       |
+| **ModelScope**   | `ms-` 开头             | ModelScope 魔搭    | `ms-xxxxx...`       |
+| **Pollinations** | `pk_*` 或 `sk_*` 开头  | Pollinations       | `pk_xxxxx...`       |
+| **Doubao**       | UUID 格式 (8-4-4-4-12) | 火山引擎/豆包      | `12345678-1234-...` |
+| **Gitee**        | 30-60 位字母数字       | 模力方舟           | `abcd1234efgh...`   |
+| **ApiMart**      | 不做裸 Key 自动识别    | ApiMart            | 通过后端 Key 池配置 |
 
 ### 运行模式说明
 
@@ -76,13 +82,14 @@ ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家
 
 ### 各渠道数据流（摘要）
 
-| 渠道             | 文生图                         | 图生图/编辑                    | 融合生图                             | 备注                            |
-| ---------------- | ------------------------------ | ------------------------------ | ------------------------------------ | ------------------------------- |
-| **Doubao**       | JSON(prompt) → URL/b64_json    | JSON(images) → URL/b64_json    | JSON(messages/images) → URL/b64_json | 内置尺寸校验与自动修正          |
-| **Gitee**        | JSON(prompt) → b64_json        | FormData/JSON → b64_json       | 复用编辑模型 → b64_json              | 强制 b64_json（策略约束）       |
-| **ModelScope**   | JSON → 异步轮询 → URL/b64_json | JSON → 异步轮询 → URL/b64_json | JSON → 异步轮询 → URL/b64_json       | 原生多为单张，通过并发模拟多张  |
-| **HuggingFace**  | Space API → URL/b64_json       | Space API → URL/b64_json       | Space API → URL/b64_json             | 支持 HF 模型映射到不同 Space    |
-| **Pollinations** | GET/参数 → 图片流 → b64_json   | GET/参数（需要 URL）           | GET/参数                             | Base64 输入会先上传图床换短 URL |
+| 渠道             | 文生图                         | 图生图/编辑                                | 融合生图                                   | 备注                             |
+| ---------------- | ------------------------------ | ------------------------------------------ | ------------------------------------------ | -------------------------------- |
+| **Doubao**       | JSON(prompt) → URL/b64_json    | JSON(images) → URL/b64_json                | JSON(messages/images) → URL/b64_json       | 内置尺寸校验与自动修正           |
+| **Gitee**        | JSON(prompt) → b64_json        | FormData/JSON → b64_json                   | 复用编辑模型 → b64_json                    | 强制 b64_json（策略约束）        |
+| **ModelScope**   | JSON → 异步轮询 → URL/b64_json | JSON → 异步轮询 → URL/b64_json             | JSON → 异步轮询 → URL/b64_json             | 原生多为单张，通过并发模拟多张   |
+| **HuggingFace**  | Space API → URL/b64_json       | Space API → URL/b64_json                   | Space API → URL/b64_json                   | 支持 HF 模型映射到不同 Space     |
+| **Pollinations** | GET/参数 → 图片流 → b64_json   | GET/参数（需要 URL）                       | GET/参数                                   | Base64 输入会先上传图床换短 URL  |
+| **ApiMart**      | JSON → 异步轮询 → URL/b64_json | JSON(image_urls) → 异步轮询 → URL/b64_json | JSON(image_urls) → 异步轮询 → URL/b64_json | `gpt-image-2`，支持 `resolution` |
 
 ## 核心功能
 
@@ -119,7 +126,9 @@ ImgRouter 是一个生产就绪的 AI 图像生成网关服务，旨在将多家
 - 默认端口：`10001`
 
 ### 📦 Docker 镜像仓库
+
 ImgRouter 提供预构建的 Docker 镜像，支持多平台（linux/amd64、linux/arm64）：
+
 #### 🌏 国内用户（推荐使用阿里云镜像）
 
 ```bash
@@ -128,7 +137,9 @@ docker pull crpi-yfnrhqcn81ace83g.cn-beijing.personal.cr.aliyuncs.com/lianwusuoa
 # 拉取指定版本
 docker pull crpi-yfnrhqcn81ace83g.cn-beijing.personal.cr.aliyuncs.com/lianwusuoai/img-router:1.9.0
 ```
+
 #### 🌍 国外用户（使用 Docker Hub）
+
 ```bash
 # 拉取最新版本
 docker pull lianwusuoai/img-router:latest
@@ -137,6 +148,7 @@ docker pull lianwusuoai/img-router:1.9.0
 ```
 
 **可用标签**：
+
 - `latest` - 最新稳定版本
 - `main` - 主分支最新构建
 - `x.y.z` - 特定版本号（如 1.9.0）
@@ -144,13 +156,17 @@ docker pull lianwusuoai/img-router:1.9.0
 ### 分步部署流程
 
 #### 方式一：使用 Docker Compose（推荐）
+
 ```bash
 git clone https://github.com/lianwusuoai/img-router.git
 cd img-router
 docker-compose up -d
 ```
+
 #### 方式二：直接使用 Docker 运行
+
 **国内用户**：
+
 ```bash
 docker run -d \
 --name img-router \
@@ -158,7 +174,9 @@ docker run -d \
 -v $(pwd)/data:/app/data \
 crpi-yfnrhqcn81ace83g.cn-beijing.personal.cr.aliyuncs.com/lianwusuoai/img-router:latest
 ```
+
 **国外用户**：
+
 ```bash
 docker run -d \
 --name img-router \
@@ -166,6 +184,7 @@ docker run -d \
 -v $(pwd)/data:/app/data \
 lianwusuoai/img-router:latest
 ```
+
 访问管理面板：`http://localhost:10001/admin`
 
 ### 配置参数说明
@@ -189,6 +208,7 @@ lianwusuoai/img-router:latest
 - `system.modes.relay / system.modes.backend`：运行模式开关
 - `providers.{Provider}.enabled`：Provider 启用/禁用
 - `providers.{Provider}.{task}`：任务默认值与路由权重（task ∈ text/edit/blend）
+- `providers.ApiMart.{task}.resolution`：ApiMart 输出分辨率档位（`1k` / `2k` / `4k`）
 - `promptOptimizer`：提示词优化器配置
 - `hfModelMap`：HuggingFace 模型 → Space URL 映射
 - `storage.s3`：S3/R2 兼容存储配置（endpoint/bucket/accessKey/secretKey/region/publicUrl）
@@ -281,8 +301,6 @@ GET /v1/models
 - 画廊：`GET/DELETE /api/gallery`；图片访问：`/storage/<filename>`
 - 更新检查：`GET /api/update/check`
 - HF 映射：`GET/POST /api/config/hf-map`
-
-
 
 ## 开发
 

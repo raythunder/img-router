@@ -72,6 +72,27 @@ const NEWAPI_SIZES = [
   "512x512",
 ];
 
+const APIMART_SIZES = [
+  "auto",
+  "1:1",
+  "3:2",
+  "2:3",
+  "4:3",
+  "3:4",
+  "5:4",
+  "4:5",
+  "16:9",
+  "9:16",
+  "2:1",
+  "1:2",
+  "3:1",
+  "1:3",
+  "21:9",
+  "9:21",
+];
+
+const APIMART_RESOLUTIONS = ["1k", "2k", "4k"];
+
 function parsePixelSize(size) {
   const m = String(size || "").match(/^(\d+)x(\d+)$/);
   if (!m) return null;
@@ -142,11 +163,11 @@ export async function renderChannel(container) {
     // 监听渠道开关状态变化，实时更新视觉效果
     if (e.target.dataset.field === "enabled") {
       const isEnabled = e.target.checked;
-      
+
       // 找到对应的渠道表格
       const section = e.target.closest(".form-section");
       const channelTable = section?.querySelector(".channel-table");
-      
+
       if (channelTable) {
         // 实时更新样式
         if (isEnabled) {
@@ -292,11 +313,11 @@ async function loadChannelConfig() {
     channelRuntimeConfig = config.runtimeConfig || { providers: {} };
 
     const providers = Array.isArray(config.providers) ? config.providers : [];
-    
+
     // 🔧 修复：直接使用后端返回的模型列表，不再从前端重新获取
     // 后端的 /api/config 接口已经正确合并了所有 NewApi Key 的模型列表
     console.log("✅ 使用后端返回的 Provider 配置（包含 NewApi 合并后的模型列表）");
-    
+
     // 使用后端返回的 providers 进行渲染
     renderAllChannels(providers);
   } catch (e) {
@@ -340,7 +361,7 @@ function renderAllChannels(providers) {
     const textDefaults = providerDefaults.text || {};
     const editDefaults = providerDefaults.edit || {};
     const blendDefaults = providerDefaults.blend || {};
-    
+
     // 🔧 修复：从 runtimeConfig 读取 enabled 状态，而不是从 provider 对象
     // 如果 runtimeConfig 中有明确的 enabled 配置，使用它；否则使用 provider.enabled
     const isEnabled = providerDefaults.enabled !== undefined
@@ -399,6 +420,7 @@ function renderAllChannels(providers) {
                     <div class="channel-header">渠道名称</div>
                     <div class="channel-header">模型</div>
                     <div class="channel-header">尺寸</div>
+                    <div class="channel-header">分辨率</div>
                     <div class="channel-header">质量</div>
                     <div class="channel-header">生图数量</div>
                     <div class="channel-header">生图步数</div>
@@ -419,6 +441,9 @@ function renderAllChannels(providers) {
     }</div>
                     <div class="channel-cell">${
       buildSizeSelect(provider, "text", textDefaults.size, textDefaults.model)
+    }</div>
+                    <div class="channel-cell">${
+      buildResolutionSelect(provider, textDefaults.resolution, "text")
     }</div>
                     <div class="channel-cell">${
       buildQualitySelect(provider, textDefaults.quality, "text")
@@ -448,6 +473,9 @@ function renderAllChannels(providers) {
       buildSizeSelect(provider, "edit", editDefaults.size, editDefaults.model)
     }</div>
                     <div class="channel-cell">${
+      buildResolutionSelect(provider, editDefaults.resolution, "edit")
+    }</div>
+                    <div class="channel-cell">${
       buildQualitySelect(provider, editDefaults.quality, "edit")
     }</div>
                     <div class="channel-cell">${
@@ -474,6 +502,9 @@ function renderAllChannels(providers) {
     }</div>
                     <div class="channel-cell">${
       buildSizeSelect(provider, "blend", blendDefaults.size, blendDefaults.model)
+    }</div>
+                    <div class="channel-cell">${
+      buildResolutionSelect(provider, blendDefaults.resolution, "blend")
     }</div>
                     <div class="channel-cell">${
       buildQualitySelect(provider, blendDefaults.quality, "blend")
@@ -574,6 +605,7 @@ function buildSizeSelect(provider, task, currentValue, currentModel) {
   const isModelScope = provider.name === "ModelScope";
   const isPollinations = provider.name === "Pollinations";
   const isNewApi = provider.name === "NewApi";
+  const isApiMart = provider.name === "ApiMart";
   let sizes = channelSupportedSizes && channelSupportedSizes.length > 0
     ? channelSupportedSizes
     : ["1024x1024", "1024x768", "768x1024", "1280x720"];
@@ -611,6 +643,8 @@ function buildSizeSelect(provider, task, currentValue, currentModel) {
     sizes = [...POLLINATIONS_SIZES];
   } else if (isNewApi) {
     sizes = [...NEWAPI_SIZES];
+  } else if (isApiMart) {
+    sizes = [...APIMART_SIZES];
   }
 
   let html =
@@ -652,6 +686,32 @@ function buildSizeSelect(provider, task, currentValue, currentModel) {
       const selected = (i === 0) ? "selected" : "";
       html += `<option value="${s}" ${selected}>${label}</option>`;
     }
+  }
+
+  html += "</select>";
+  return html;
+}
+
+/**
+ * 构建分辨率选择下拉框
+ *
+ * @param {Object} provider - Provider 对象
+ * @param {string} currentValue - 当前选中的值
+ * @param {string} task - 任务类型
+ * @returns {string} HTML 字符串
+ */
+function buildResolutionSelect(provider, currentValue, task) {
+  if (provider.name !== "ApiMart") {
+    return `<select class="form-control" disabled style="opacity: 0.6"><option>默认</option></select>`;
+  }
+
+  const targetValue = currentValue || "1k";
+  let html =
+    `<select class="form-control" data-provider="${provider.name}" data-task="${task}" data-field="resolution">`;
+
+  for (const resolution of APIMART_RESOLUTIONS) {
+    const selected = resolution === targetValue ? "selected" : "";
+    html += `<option value="${resolution}" ${selected}>${resolution.toUpperCase()}</option>`;
   }
 
   html += "</select>";

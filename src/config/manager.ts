@@ -45,6 +45,8 @@ export interface ApiKeysConfig {
   pollinations: string;
   /** NewApi 访问令牌 */
   newapi: string;
+  /** ApiMart 访问令牌 */
+  apimart: string;
 }
 
 /**
@@ -75,8 +77,12 @@ export interface BaseProviderConfig {
   defaultSize: string;
   /** 默认生成数量 */
   defaultCount?: number;
+  /** 默认输出分辨率档位 */
+  defaultResolution?: string;
   /** 默认编辑生成数量 */
   defaultEditCount?: number;
+  /** 默认编辑输出分辨率档位 */
+  defaultEditResolution?: string;
   /** 支持的融合生图模型列表（可选） */
   blendModels?: string[];
   /** 默认融合生图模型（可选） */
@@ -85,6 +91,8 @@ export interface BaseProviderConfig {
   defaultBlendSize?: string;
   /** 默认融合生图数量（可选） */
   defaultBlendCount?: number;
+  /** 默认融合生图输出分辨率档位（可选） */
+  defaultBlendResolution?: string;
   /** 支持的模型列表 */
   textModels: string[];
 }
@@ -257,6 +265,7 @@ export interface AppConfig {
     huggingface: HuggingFaceConfig;
     pollinations: PollinationsConfig;
     newapi: BaseProviderConfig;
+    apimart: BaseProviderConfig;
   };
   imageBed: ImageBedConfig;
   logging: LoggingConfig;
@@ -288,7 +297,7 @@ export interface KeyPoolItem {
   addedAt?: number;
   successCount?: number;
   totalCalls?: number;
-  
+
   // NewApi 特殊字段
   /** API 基础 URL (NewApi 专用) */
   baseUrl?: string;
@@ -309,6 +318,8 @@ export interface ProviderTaskDefaults {
   weight?: number;
   /** 模型映射配置 (自定义ID) */
   modelMap?: string;
+  /** 输出分辨率档位 (例如 ApiMart: 1k/2k/4k) */
+  resolution?: string | null;
   /** 提示词优化器配置 */
   promptOptimizer?: {
     translate?: boolean;
@@ -477,6 +488,7 @@ const DEFAULT_CONFIG: AppConfig = {
     huggingface: "",
     pollinations: "",
     newapi: "",
+    apimart: "",
   },
   defaults: {
     imageModel: "doubao-seedream-4-5-251128",
@@ -505,6 +517,26 @@ const DEFAULT_CONFIG: AppConfig = {
       defaultCount: 1,
       defaultEditCount: 1,
       textModels: [],
+    },
+    apimart: {
+      enabled: true,
+      apiUrl: "https://api.apimart.ai/v1",
+      defaultModel: "gpt-image-2",
+      defaultSize: "1:1",
+      defaultCount: 1,
+      defaultResolution: "1k",
+      defaultEditCount: 1,
+      defaultEditResolution: "1k",
+      defaultBlendCount: 1,
+      defaultBlendResolution: "1k",
+      defaultBlendModel: "gpt-image-2",
+      defaultBlendSize: "1:1",
+      textModels: [
+        "gpt-image-2",
+      ],
+      blendModels: [
+        "gpt-image-2",
+      ],
     },
     gitee: {
       enabled: true,
@@ -689,12 +721,14 @@ export const GITEE_MODELS = DEFAULT_CONFIG.providers.gitee.textModels;
 export const MODELSCOPE_MODELS = DEFAULT_CONFIG.providers.modelscope.textModels;
 export const HUGGINGFACE_MODELS = DEFAULT_CONFIG.providers.huggingface.textModels;
 export const POLLINATIONS_MODELS = DEFAULT_CONFIG.providers.pollinations.textModels;
+export const APIMART_MODELS = DEFAULT_CONFIG.providers.apimart.textModels;
 export const ALL_TEXT_MODELS = [
   ...DOUBAO_MODELS,
   ...GITEE_MODELS,
   ...MODELSCOPE_MODELS,
   ...HUGGINGFACE_MODELS,
   ...POLLINATIONS_MODELS,
+  ...APIMART_MODELS,
 ];
 
 /**
@@ -753,6 +787,19 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
       edit: { model: "gpt-4o", size: "1024x1024", quality: "standard", n: 1 },
       blend: { model: "gpt-4o", size: "1024x1024", quality: "standard", n: 1 },
     },
+    ApiMart: {
+      enabled: true,
+      text: {
+        model: "gpt-image-2",
+        size: "1:1",
+        quality: "standard",
+        n: 1,
+        weight: 10,
+        resolution: "1k",
+      },
+      edit: { model: "gpt-image-2", size: "1:1", quality: "standard", n: 1, resolution: "1k" },
+      blend: { model: "gpt-image-2", size: "1:1", quality: "standard", n: 1, resolution: "1k" },
+    },
     MockA: {
       text: { model: "sdxl", weight: 100 },
     },
@@ -764,6 +811,7 @@ const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
     Doubao: [],
     HuggingFace: [],
     Gitee: [],
+    ApiMart: [],
   },
   promptOptimizer: {
     baseUrl: "https://api.lianwusuoai.top/v1",
@@ -869,7 +917,10 @@ class ConfigManager {
         if (typeof v.n === "number" || v.n === null) out.n = v.n as number | null;
         if (typeof v.steps === "number" || v.steps === null) out.steps = v.steps as number | null;
         if (typeof v.weight === "number") out.weight = v.weight;
-        
+        if (typeof v.resolution === "string" || v.resolution === null) {
+          out.resolution = v.resolution as string | null;
+        }
+
         // 处理 modelMap (模型ID映射)
         if (typeof v.modelMap === "string") {
           out.modelMap = v.modelMap;
@@ -890,6 +941,7 @@ class ConfigManager {
           "quality",
           "n",
           "weight",
+          "resolution",
           "modelMap",
           "promptOptimizer",
           "steps",
@@ -933,7 +985,9 @@ class ConfigManager {
         model: typeof po.model === "string" ? po.model : "",
         enableTranslate: typeof po.enableTranslate === "boolean" ? po.enableTranslate : undefined,
         translatePrompt: typeof po.translatePrompt === "string" ? po.translatePrompt : undefined,
-        translateMaxLength: typeof po.translateMaxLength === "number" ? po.translateMaxLength : undefined,
+        translateMaxLength: typeof po.translateMaxLength === "number"
+          ? po.translateMaxLength
+          : undefined,
         enableExpand: typeof po.enableExpand === "boolean" ? po.enableExpand : undefined,
         expandPrompt: typeof po.expandPrompt === "string" ? po.expandPrompt : undefined,
         expandMaxLength: typeof po.expandMaxLength === "number" ? po.expandMaxLength : undefined,
@@ -1182,6 +1236,9 @@ class ConfigManager {
   get NEWAPI_API_KEY() {
     return this.config.apiKeys.newapi;
   }
+  get APIMART_API_KEY() {
+    return this.config.apiKeys.apimart;
+  }
 
   get DEFAULT_IMAGE_MODEL() {
     return this.config.defaults.imageModel;
@@ -1214,6 +1271,9 @@ class ConfigManager {
   get NewApiConfig() {
     return this.config.providers.newapi;
   }
+  get ApiMartConfig() {
+    return this.config.providers.apimart;
+  }
 
   get ImageBedConfig() {
     return this.config.imageBed;
@@ -1242,7 +1302,44 @@ class ConfigManager {
    * 获取完整的运行时配置对象
    */
   public getRuntimeConfig(): RuntimeConfig {
-    return this.runtimeConfig;
+    return this.withRuntimeDefaults(this.runtimeConfig);
+  }
+
+  private withRuntimeDefaults(config: RuntimeConfig): RuntimeConfig {
+    const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+    const defaults = clone(DEFAULT_RUNTIME_CONFIG);
+    const current = clone(config);
+
+    return {
+      system: { ...defaults.system, ...current.system },
+      providers: this.mergeRuntimeProviders(defaults.providers, current.providers || {}),
+      keyPools: { ...defaults.keyPools, ...(current.keyPools || {}) },
+      promptOptimizer: current.promptOptimizer ?? defaults.promptOptimizer,
+      hfModelMap: current.hfModelMap ?? defaults.hfModelMap,
+      storage: current.storage ?? defaults.storage,
+    };
+  }
+
+  private mergeRuntimeProviders(
+    defaults: Record<string, RuntimeProviderConfig>,
+    current: Record<string, RuntimeProviderConfig>,
+  ): Record<string, RuntimeProviderConfig> {
+    const providers: Record<string, RuntimeProviderConfig> = {};
+    const names = new Set([...Object.keys(defaults), ...Object.keys(current)]);
+
+    for (const name of names) {
+      const defaultProvider = defaults[name] || {};
+      const currentProvider = current[name] || {};
+      providers[name] = {
+        ...defaultProvider,
+        ...currentProvider,
+        text: { ...(defaultProvider.text || {}), ...(currentProvider.text || {}) },
+        edit: { ...(defaultProvider.edit || {}), ...(currentProvider.edit || {}) },
+        blend: { ...(defaultProvider.blend || {}), ...(currentProvider.blend || {}) },
+      };
+    }
+
+    return providers;
   }
 
   /**
@@ -1263,12 +1360,19 @@ class ConfigManager {
     this.runtimeConfig = newConfig;
     this.saveRuntimeConfig();
     this.applyRuntimeOverrides();
-    
+
     // 同步更新 providerRegistry 的 enabled 状态
     // 动态导入以避免循环依赖
     import("../providers/registry.ts").then(({ providerRegistry }) => {
-      type ProviderName = "Doubao" | "Gitee" | "ModelScope" | "HuggingFace" | "Pollinations";
-      
+      type ProviderName =
+        | "Doubao"
+        | "Gitee"
+        | "ModelScope"
+        | "HuggingFace"
+        | "Pollinations"
+        | "NewApi"
+        | "ApiMart";
+
       for (const [providerName, pConfig] of Object.entries(newConfig.providers)) {
         if (pConfig.enabled !== undefined) {
           if (pConfig.enabled) {
@@ -1356,11 +1460,11 @@ class ConfigManager {
       }
       return k;
     });
-    
+
     if (needsSave) {
       this.updateKeyPool(provider, validatedPool);
     }
-    
+
     return validatedPool;
   }
 
@@ -1477,6 +1581,7 @@ export const MODELSCOPE_API_KEY = configManager.MODELSCOPE_API_KEY;
 export const HUGGINGFACE_API_KEY = configManager.HUGGINGFACE_API_KEY;
 export const POLLINATIONS_API_KEY = configManager.POLLINATIONS_API_KEY;
 export const NEWAPI_API_KEY = configManager.NEWAPI_API_KEY;
+export const APIMART_API_KEY = configManager.APIMART_API_KEY;
 
 export const DEFAULT_IMAGE_MODEL = configManager.DEFAULT_IMAGE_MODEL;
 export const DEFAULT_IMAGE_SIZE = configManager.DEFAULT_IMAGE_SIZE;
@@ -1489,6 +1594,7 @@ export const ModelScopeConfig = configManager.ModelScopeConfig;
 export const HuggingFaceConfig = configManager.HuggingFaceConfig;
 export const PollinationsConfig = configManager.PollinationsConfig;
 export const NewApiConfig = configManager.NewApiConfig;
+export const ApiMartConfig = configManager.ApiMartConfig;
 
 export const ImageBedConfig = configManager.ImageBedConfig;
 export const ModesConfig = configManager.ModesConfig;

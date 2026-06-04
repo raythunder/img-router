@@ -22,6 +22,7 @@ export type ProviderName =
   | "HuggingFace" // Hugging Face
   | "Pollinations" // Pollinations AI
   | "NewApi" // NewApi (OpenAI 兼容网关)
+  | "ApiMart" // ApiMart
   | "Unknown"; // 未知
 
 /**
@@ -66,6 +67,8 @@ export interface ProviderConfig {
   defaultSize: string;
   /** 默认生成数量 */
   defaultCount?: number;
+  /** 默认输出分辨率档位（如 ApiMart 的 1k/2k/4k） */
+  defaultResolution?: string;
   /** 支持的图片编辑模型列表（可选） */
   editModels?: string[];
   /** 默认图片编辑模型（可选） */
@@ -74,6 +77,8 @@ export interface ProviderConfig {
   defaultEditSize?: string;
   /** 默认图片编辑生成数量（可选） */
   defaultEditCount?: number;
+  /** 默认图片编辑输出分辨率档位（可选） */
+  defaultEditResolution?: string;
   /** 支持的融合生图模型列表（可选） */
   blendModels?: string[];
   /** 默认融合生图模型（可选） */
@@ -82,6 +87,8 @@ export interface ProviderConfig {
   defaultBlendSize?: string;
   /** 默认融合生图数量（可选） */
   defaultBlendCount?: number;
+  /** 默认融合生图输出分辨率档位（可选） */
+  defaultBlendResolution?: string;
   /** 默认推理步数（可选） */
   defaultSteps?: number;
 }
@@ -426,7 +433,7 @@ export abstract class BaseProvider implements IProvider {
         translate: shouldTranslate,
         expand: shouldExpand,
         imageIndex: idx,
-        n: requestedN
+        n: requestedN,
       });
       return { ...req, prompt: newPrompt };
     };
@@ -455,12 +462,12 @@ export abstract class BaseProvider implements IProvider {
       // 增加并发延迟以避免触发服务端的速率限制或连接错误（如 tls handshake eof）
       // Pollinations 等免费渠道对并发非常敏感，建议至少 1.5s - 2s
       const taskDelay = batchIndex * 1500;
-      
+
       const currentBatchIndex = batchIndex;
 
       const taskPromise = (async () => {
         if (taskDelay > 0) await new Promise((r) => setTimeout(r, taskDelay));
-        
+
         const optimizedSubRequest = await optimizePrompt(subRequest, currentBatchIndex);
         return executor(optimizedSubRequest, currentBatchIndex + 1);
       })();

@@ -31,7 +31,8 @@ export async function fetchWithTimeout(
     url.includes("gitee.com") ||
     url.includes("modelscope.cn") ||
     url.includes("hf.space") ||
-    url.includes("pollinations.ai");
+    url.includes("pollinations.ai") ||
+    url.includes("apimart.ai");
 
   if (url.startsWith("http") && !isOfficialApi) {
     if (!isSafeUrl(url)) {

@@ -15,6 +15,7 @@ import { modelScopeProvider } from "./modelscope.ts";
 import { huggingFaceProvider } from "./huggingface.ts";
 import { pollinationsProvider } from "./pollinations.ts";
 import { newApiProvider } from "./newapi.ts";
+import { apiMartProvider } from "./apimart.ts";
 import { debug, info, logProviderRouting } from "../core/logger.ts";
 
 /** 模块名称，用于日志前缀 */
@@ -56,6 +57,7 @@ class ProviderRegistry {
       huggingFaceProvider,
       pollinationsProvider,
       newApiProvider,
+      apiMartProvider,
     ];
 
     for (const provider of builtinProviders) {
@@ -79,6 +81,7 @@ class ProviderRegistry {
       huggingFaceProvider,
       pollinationsProvider,
       newApiProvider,
+      apiMartProvider,
     ];
 
     const enabledList: string[] = [];
@@ -98,8 +101,8 @@ class ProviderRegistry {
     const disabledSummary = disabledList.length > 0
       ? `未启用 ${disabledList.length}/${builtinProviders.length}: ${disabledList.join(", ")}`
       : "";
-    
-    const parts = [enabledSummary, disabledSummary].filter(p => p);
+
+    const parts = [enabledSummary, disabledSummary].filter((p) => p);
     return parts.length > 0 ? parts.join("; ") : "无可用Provider";
   }
 
@@ -266,7 +269,7 @@ class ProviderRegistry {
    */
   async resolveModelMapping(
     modelId: string,
-    task: "text" | "edit" | "blend"
+    task: "text" | "edit" | "blend",
   ): Promise<{ provider: IProvider; actualModel: string } | null> {
     if (!modelId || modelId === "auto" || modelId === "default") {
       return null;

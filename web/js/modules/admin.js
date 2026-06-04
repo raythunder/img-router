@@ -206,6 +206,8 @@ function renderDashboardChannels(config) {
       isConfigured = true;
     } else if (p.name === "NewApi") {
       isConfigured = config.newapiConfigured || detectApiKey(config.globalAccessKey, "NewApi");
+    } else if (p.name === "ApiMart") {
+      isConfigured = config.apimartConfigured || detectApiKey(config.globalAccessKey, "ApiMart");
     }
 
     // 状态判定逻辑

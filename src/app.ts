@@ -979,10 +979,15 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
   const { method } = req;
 
   debug("HTTP", `Request: ${method} ${pathname}`);
-  
+
   // 特别记录 key-pool 相关的请求
   if (pathname.includes("key-pool")) {
-    debug("KeyPool", `Received request - method: ${method}, pathname: "${pathname}", exact match: ${pathname === "/api/key-pool"}`);
+    debug(
+      "KeyPool",
+      `Received request - method: ${method}, pathname: "${pathname}", exact match: ${
+        pathname === "/api/key-pool"
+      }`,
+    );
   }
 
   // 健康检查端点（允许 GET）
@@ -1290,7 +1295,12 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
             // 动态导入 NewApiProvider 以访问 getMergedModels
             const { newApiProvider } = await import("./providers/newapi.ts");
             newapiModels = await newApiProvider.getMergedModels(newapiKeyPool);
-            info("App", `[/api/config] NewApi 合并后的模型列表 (${newapiModels.length}): ${newapiModels.join(", ")}`);
+            info(
+              "App",
+              `[/api/config] NewApi 合并后的模型列表 (${newapiModels.length}): ${
+                newapiModels.join(", ")
+              }`,
+            );
           } catch (e) {
             error("App", `获取 NewApi 动态模型列表失败: ${e}`);
             newapiModels = newapiProvider.config.textModels || [];
@@ -1362,6 +1372,8 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
             pollinationsConfigured: !!Config.POLLINATIONS_API_KEY ||
               getKeyPool("Pollinations").some((k) => k.enabled),
             newapiConfigured: getKeyPool("NewApi").some((k) => k.enabled),
+            apimartConfigured: !!Config.APIMART_API_KEY ||
+              getKeyPool("ApiMart").some((k) => k.enabled),
             globalAccessKeyConfigured: !!Config.GLOBAL_ACCESS_KEY,
             cors: resolvedCors,
             logging: resolvedLogging,
@@ -1437,19 +1449,19 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
       if (method === "GET") {
         const provider = ctx.url.searchParams.get("provider");
         const id = ctx.url.searchParams.get("id");
-        
+
         if (!provider) {
           return new Response(JSON.stringify({ error: "Missing provider param" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
           });
         }
-        
+
         const pool = getKeyPool(provider);
-        
+
         // 如果提供了 id 参数，返回单个 Key 的完整信息（不脱敏）
         if (id) {
-          const keyItem = pool.find(k => k.id === id);
+          const keyItem = pool.find((k) => k.id === id);
           if (!keyItem) {
             return new Response(JSON.stringify({ error: "Key not found" }), {
               status: 404,
@@ -1461,7 +1473,7 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
             headers: { "Content-Type": "application/json" },
           });
         }
-        
+
         // Debug: Log pool data to diagnose the issue
         debug("KeyPool", `Key pool for provider "${provider}": ${JSON.stringify(pool, null, 2)}`);
         debug("KeyPool", `Pool length: ${pool.length}`);
@@ -1469,7 +1481,7 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
           debug("KeyPool", `Key item ${idx}: ${JSON.stringify(k)}`);
           debug("KeyPool", `Key item ${idx} - key type: ${typeof k.key}, key value: ${k.key}`);
         });
-        
+
         // Security: Mask keys in response
         const safePool = pool.map((k) => ({
           ...k,
@@ -1484,7 +1496,7 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
       if (method === "POST") {
         debug("KeyPool", "POST request received");
         debug("KeyPool", `Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
-        
+
         try {
           debug("KeyPool", "Parsing body...");
           const body = await req.json() as KeyPoolUpdatePayload;
@@ -1568,7 +1580,10 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
             if (!id) throw new Error("Missing id");
             newPool = pool.map((k) => k.id === id ? { ...k, ...keyItem } : k);
           } else if (action === "delete") {
-            debug("KeyPool", `Delete action - provider: ${provider}, id: ${id}, id type: ${typeof id}`);
+            debug(
+              "KeyPool",
+              `Delete action - provider: ${provider}, id: ${id}, id type: ${typeof id}`,
+            );
             if (!id) {
               error("KeyPool", `Delete failed: Missing id parameter`);
               throw new Error("Missing id parameter");
@@ -1576,7 +1591,12 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
             const beforeCount = pool.length;
             newPool = pool.filter((k) => k.id !== id);
             const afterCount = newPool.length;
-            debug("KeyPool", `Delete result - before: ${beforeCount}, after: ${afterCount}, removed: ${beforeCount - afterCount}`);
+            debug(
+              "KeyPool",
+              `Delete result - before: ${beforeCount}, after: ${afterCount}, removed: ${
+                beforeCount - afterCount
+              }`,
+            );
             if (beforeCount === afterCount) {
               error("KeyPool", `Delete failed: Key with id "${id}" not found in pool`);
               throw new Error(`Key with id "${id}" not found`);
@@ -1852,6 +1872,10 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
           n: ("n" in defaults ? defaults.n : undefined) as number | null | undefined,
           steps: ("steps" in defaults ? defaults.steps : undefined) as number | null | undefined,
           weight: ("weight" in defaults ? defaults.weight : undefined) as number | undefined,
+          resolution: ("resolution" in defaults ? defaults.resolution : undefined) as
+            | string
+            | null
+            | undefined,
         };
 
         const promptOptimizer = defaults.promptOptimizer;
@@ -2008,8 +2032,8 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
 
           // 从 NewApi Key 池中查找匹配 baseUrl 的完整 key
           const pool = getKeyPool("NewApi");
-          const matchedKey = pool.find(k => k.enabled && k.baseUrl === body.baseUrl);
-          
+          const matchedKey = pool.find((k) => k.enabled && k.baseUrl === body.baseUrl);
+
           if (!matchedKey || !matchedKey.key) {
             throw new Error(`未找到匹配 baseUrl "${body.baseUrl}" 的有效 Key`);
           }
@@ -2041,7 +2065,9 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
         try {
           const body = await req.json();
 
-          if (!isRecord(body) || typeof body.baseUrl !== "string" || typeof body.apiKey !== "string") {
+          if (
+            !isRecord(body) || typeof body.baseUrl !== "string" || typeof body.apiKey !== "string"
+          ) {
             return new Response(JSON.stringify({ error: "Missing or invalid baseUrl/apiKey" }), {
               status: 400,
               headers: { "Content-Type": "application/json" },

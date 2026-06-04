@@ -3,7 +3,7 @@
   "name": "add-apimart-channel-settings",
   "title": "Add ApiMart Channel Settings",
   "description": "Add ApiMart as a configurable image provider channel",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

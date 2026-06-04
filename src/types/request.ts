@@ -90,6 +90,8 @@ export interface ImagesRequest {
   stream?: boolean;
   /** 推理步数 */
   steps?: number;
+  /** 输出分辨率档位（Provider 扩展，如 1k/2k/4k） */
+  resolution?: string;
   /** 允许其他任意扩展字段 */
   [key: string]: unknown;
 }
@@ -117,6 +119,8 @@ export interface ImagesEditRequest {
   stream?: boolean;
   /** 推理步数 */
   steps?: number;
+  /** 输出分辨率档位（Provider 扩展，如 1k/2k/4k） */
+  resolution?: string;
   /** 允许其他任意扩展字段 */
   [key: string]: unknown;
 }
@@ -204,6 +208,8 @@ export interface ImageGenerationRequest {
   stream?: boolean;
   /** 推理步数 */
   steps?: number;
+  /** 输出分辨率档位（Provider 扩展，如 1k/2k/4k） */
+  resolution?: string;
   /** 允许其他任意扩展字段 */
   [key: string]: unknown;
 }
@@ -228,6 +234,8 @@ export interface ImagesBlendRequest {
   response_format?: "url" | "b64_json";
   /** 推理步数 */
   steps?: number;
+  /** 输出分辨率档位（Provider 扩展，如 1k/2k/4k） */
+  resolution?: string;
   /** 允许其他任意扩展字段 */
   [key: string]: unknown;
 }
