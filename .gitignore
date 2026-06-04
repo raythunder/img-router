@@ -3,6 +3,7 @@ data/runtime-config.json
 data/
 .env
 .env.*
+!.env.example
 docker-compose.override.yml
 
 # 日志（实际会产生）
@@ -27,4 +28,3 @@ Desktop.ini
 # 本地参考目录
 docs/
 !docs/介绍/
-

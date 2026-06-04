@@ -191,6 +191,9 @@ lianwusuoai/img-router:latest
 
 配置来源优先级：**环境变量 > 运行时配置（data/runtime-config.json）> 默认配置**。
 
+可复制 `.env.example` 为 `.env`，用于 Docker Compose 环境变量插值；直接运行 `deno task start`
+时，需要在 shell 中导出对应环境变量。
+
 **常用环境变量**（与实现保持一致）：
 
 - `PORT`：服务端口（默认 10001）
