@@ -1647,14 +1647,9 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
       if (method === "GET") {
         // 聚合所有已启用 Provider 的模型
         const allModels = new Set<string>();
-
-        // 添加文本模型
-        Config.ALL_TEXT_MODELS.forEach((m) => allModels.add(m));
-
-        const names = providerRegistry.getNames();
+        const names = providerRegistry.getEnabledNames();
 
         for (const name of names) {
-          if (!providerRegistry.has(name)) continue;
           const provider = providerRegistry.get(name);
           if (provider) {
             // 为 NewApi 使用动态模型列表
