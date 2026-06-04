@@ -191,8 +191,8 @@ lianwusuoai/img-router:latest
 
 配置来源优先级：**环境变量 > 运行时配置（data/runtime-config.json）> 默认配置**。
 
-可复制 `.env.example` 为 `.env`，用于 Docker Compose 环境变量插值；本地 Deno 启动可使用
-`deno task start:env` 或 `deno task dev:env` 自动加载 `.env`。
+可复制 `.env.example` 为 `.env`。Docker Compose 会通过 `env_file` 把 `.env` 注入容器；本地 Deno
+启动可使用 `deno task start:env` 或 `deno task dev:env` 自动加载 `.env`。
 
 **常用环境变量**（与实现保持一致）：
 
