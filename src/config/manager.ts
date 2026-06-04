@@ -26,6 +26,16 @@ export interface ServerConfig {
 }
 
 /**
+ * 管理端登录配置
+ */
+export interface AdminAuthConfig {
+  /** 管理员用户名 */
+  username: string;
+  /** 管理员密码 */
+  password: string;
+}
+
+/**
  * API 密钥配置接口
  * 存储各个 AI 服务提供商的认证信息
  */
@@ -256,6 +266,7 @@ export interface ModesConfig {
  */
 export interface AppConfig {
   server: ServerConfig;
+  adminAuth: AdminAuthConfig;
   apiKeys: ApiKeysConfig;
   defaults: DefaultsConfig;
   providers: {
@@ -477,6 +488,10 @@ const DEFAULT_CONFIG: AppConfig = {
       threshold: 10,
       target: 5,
     },
+  },
+  adminAuth: {
+    username: "",
+    password: "",
   },
   apiKeys: {
     doubao: {
@@ -1159,6 +1174,12 @@ class ConfigManager {
       this.config.server.apiTimeoutMs = parseInt(process.env.API_TIMEOUT_MS);
     }
     if (process.env.LOG_LEVEL) this.config.logging.level = process.env.LOG_LEVEL;
+    if (process.env.ADMIN_USERNAME) {
+      this.config.adminAuth.username = process.env.ADMIN_USERNAME;
+    }
+    if (process.env.ADMIN_PASSWORD) {
+      this.config.adminAuth.password = process.env.ADMIN_PASSWORD;
+    }
   }
 
   /**
@@ -1191,6 +1212,15 @@ class ConfigManager {
   }
   get GLOBAL_ACCESS_KEY() {
     return this.config.server.globalAccessKey;
+  }
+  get ADMIN_USERNAME() {
+    return this.config.adminAuth.username;
+  }
+  get ADMIN_PASSWORD() {
+    return this.config.adminAuth.password;
+  }
+  get ADMIN_AUTH_ENABLED() {
+    return this.config.adminAuth.username.length > 0 && this.config.adminAuth.password.length > 0;
   }
   get COMPRESS_THRESHOLD() {
     return this.config.server.compress.threshold;
@@ -1565,6 +1595,9 @@ export const PORT = configManager.PORT;
 export const API_TIMEOUT_MS = configManager.API_TIMEOUT_MS;
 export const MAX_REQUEST_BODY_SIZE = configManager.MAX_REQUEST_BODY_SIZE;
 export const GLOBAL_ACCESS_KEY = configManager.GLOBAL_ACCESS_KEY;
+export const ADMIN_USERNAME = configManager.ADMIN_USERNAME;
+export const ADMIN_PASSWORD = configManager.ADMIN_PASSWORD;
+export const ADMIN_AUTH_ENABLED = configManager.ADMIN_AUTH_ENABLED;
 export const COMPRESS_THRESHOLD = configManager.COMPRESS_THRESHOLD;
 export const COMPRESS_TARGET = configManager.COMPRESS_TARGET;
 

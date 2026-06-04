@@ -11,6 +11,7 @@ import { renderChannel } from "./channel.js";
 // import { renderModelMap } from "./model_map.js";
 import { renderKeys } from "./keys.js";
 import { renderGallery } from "./gallery.js";
+import { renderLogin } from "./login.js";
 
 /**
  * 路由配置表
@@ -19,6 +20,7 @@ import { renderGallery } from "./gallery.js";
  */
 const routes = {
   "/admin": { title: "仪表盘", render: renderAdmin },
+  "/login": { title: "登录", render: renderLogin, public: true },
   "/setting": { title: "系统设置", render: renderSetting },
   "/channel": { title: "渠道设置", render: renderChannel },
   // "/model-map": { title: "模型映射", render: renderModelMap },
@@ -53,6 +55,13 @@ export function initRouter() {
   document.addEventListener("click", (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
+    const logoutButton = target.closest("[data-admin-logout]");
+    if (logoutButton) {
+      e.preventDefault();
+      logoutAdmin();
+      return;
+    }
+
     const link = target.closest("a[data-link]");
     if (link) {
       e.preventDefault();
@@ -95,8 +104,27 @@ async function handleLocation() {
   // 查找路由，未找到则回退到默认路由
   const route = routes[path] || routes["/admin"];
 
+  const session = await getAdminSession();
+  document.body.classList.toggle("admin-auth-enabled", !!session.enabled);
+  if (!session.enabled && path === "/login") {
+    globalThis.history.replaceState(null, null, "/admin");
+    return await handleLocation();
+  }
+  if (session.enabled && !session.authenticated && !route.public) {
+    const next = encodeURIComponent(globalThis.location.pathname + globalThis.location.search);
+    globalThis.history.replaceState(null, null, `/login?next=${next}`);
+    return await handleLocation();
+  }
+  if (session.enabled && session.authenticated && path === "/login") {
+    const params = new URLSearchParams(globalThis.location.search);
+    const next = sanitizeNextPath(params.get("next")) || "/admin";
+    globalThis.history.replaceState(null, null, next);
+    return await handleLocation();
+  }
+
   // 1. 更新页面标题
   document.title = `${route.title} - ImgRouter 管理面板`;
+  document.body.classList.toggle("login-page", path === "/login");
 
   // 2. 更新顶部 Header 标题
   const headerTitle = document.getElementById("headerTitle");
@@ -147,4 +175,25 @@ function updateActiveNav(path) {
       el.classList.add("active");
     }
   });
+}
+
+async function getAdminSession() {
+  try {
+    const res = await fetch("/api/admin/session");
+    if (!res.ok) return { enabled: false, authenticated: true };
+    return await res.json();
+  } catch {
+    return { enabled: false, authenticated: true };
+  }
+}
+
+function sanitizeNextPath(next) {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "";
+  if (next === "/login") return "/admin";
+  return next;
+}
+
+async function logoutAdmin() {
+  await fetch("/api/admin/logout", { method: "POST" });
+  globalThis.location.href = "/login";
 }

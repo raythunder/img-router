@@ -895,6 +895,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object";
 }
 
+const ADMIN_SESSION_COOKIE = "img_router_admin_session";
+const ADMIN_SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const ADMIN_SESSION_TTL_MS = ADMIN_SESSION_MAX_AGE_SECONDS * 1000;
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+interface AdminSessionPayload {
+  username: string;
+  exp: number;
+  nonce: string;
+}
+
 // 密钥池更新请求载荷定义
 interface KeyPoolUpdatePayload {
   provider: string;
@@ -903,6 +915,215 @@ interface KeyPoolUpdatePayload {
   id?: string;
   keys?: string;
   format?: "csv" | "text" | "auto";
+}
+
+function base64UrlEncodeBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function base64UrlEncodeString(value: string): string {
+  return base64UrlEncodeBytes(textEncoder.encode(value));
+}
+
+function base64UrlDecodeString(value: string): string {
+  const padded = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(
+    Math.ceil(value.length / 4) * 4,
+    "=",
+  );
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return textDecoder.decode(bytes);
+}
+
+function parseCookies(req: Request): Record<string, string> {
+  const header = req.headers.get("Cookie") || "";
+  const cookies: Record<string, string> = {};
+  for (const part of header.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (!rawName) continue;
+    cookies[rawName] = rawValue.join("=");
+  }
+  return cookies;
+}
+
+async function getAdminSigningKey(): Promise<CryptoKey> {
+  return await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(`img-router-admin:${Config.ADMIN_PASSWORD}`),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+}
+
+async function signAdminSessionPayload(payloadPart: string): Promise<string> {
+  const key = await getAdminSigningKey();
+  const signature = await crypto.subtle.sign("HMAC", key, textEncoder.encode(payloadPart));
+  return base64UrlEncodeBytes(new Uint8Array(signature));
+}
+
+function timingSafeEqualString(left: string, right: string): boolean {
+  const leftBytes = textEncoder.encode(left);
+  const rightBytes = textEncoder.encode(right);
+  let diff = leftBytes.length ^ rightBytes.length;
+  const length = Math.max(leftBytes.length, rightBytes.length);
+
+  for (let i = 0; i < length; i++) {
+    diff |= (leftBytes[i] ?? 0) ^ (rightBytes[i] ?? 0);
+  }
+
+  return diff === 0;
+}
+
+async function createAdminSessionToken(username: string): Promise<string> {
+  const payload: AdminSessionPayload = {
+    username,
+    exp: Date.now() + ADMIN_SESSION_TTL_MS,
+    nonce: crypto.randomUUID(),
+  };
+  const payloadPart = base64UrlEncodeString(JSON.stringify(payload));
+  const signature = await signAdminSessionPayload(payloadPart);
+  return `${payloadPart}.${signature}`;
+}
+
+async function verifyAdminSessionToken(token: string): Promise<boolean> {
+  const [payloadPart, signaturePart] = token.split(".");
+  if (!payloadPart || !signaturePart) return false;
+
+  const expectedSignature = await signAdminSessionPayload(payloadPart);
+  if (!timingSafeEqualString(signaturePart, expectedSignature)) return false;
+
+  try {
+    const payload = JSON.parse(base64UrlDecodeString(payloadPart)) as Partial<AdminSessionPayload>;
+    return payload.username === Config.ADMIN_USERNAME &&
+      typeof payload.exp === "number" &&
+      payload.exp > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+async function isAdminAuthenticated(req: Request): Promise<boolean> {
+  if (!Config.ADMIN_AUTH_ENABLED) return true;
+  const token = parseCookies(req)[ADMIN_SESSION_COOKIE] || "";
+  if (!token) return false;
+  return await verifyAdminSessionToken(token);
+}
+
+function adminCookieHeader(token: string): string {
+  return [
+    `${ADMIN_SESSION_COOKIE}=${token}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    `Max-Age=${ADMIN_SESSION_MAX_AGE_SECONDS}`,
+  ].join("; ");
+}
+
+function clearAdminCookieHeader(): string {
+  return `${ADMIN_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+}
+
+function isAdminPagePath(pathname: string): boolean {
+  return [
+    "/",
+    "/admin",
+    "/setting",
+    "/channel",
+    "/keys",
+    "/pic",
+    "/prompt-optimizer",
+    "/update",
+    "/ui",
+    "/index",
+    "/index.html",
+  ].includes(pathname);
+}
+
+function isAdminAuthApi(pathname: string): boolean {
+  return pathname === "/api/admin/login" ||
+    pathname === "/api/admin/logout" ||
+    pathname === "/api/admin/session";
+}
+
+function isProtectedAdminApi(pathname: string): boolean {
+  return pathname === "/api/config" ||
+    pathname === "/api/key-pool" ||
+    pathname === "/api/runtime-config" ||
+    pathname === "/api/dashboard/stats" ||
+    pathname === "/api/restart-docker" ||
+    pathname === "/api/gallery" ||
+    pathname === "/api/logs/stream" ||
+    pathname === "/api/update/check" ||
+    pathname.startsWith("/api/config/") ||
+    pathname.startsWith("/api/tools/");
+}
+
+function adminUnauthorizedResponse(): Response {
+  return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function handleAdminLogin(req: Request): Promise<Response> {
+  if (!Config.ADMIN_AUTH_ENABLED) {
+    return new Response(JSON.stringify({ ok: true, enabled: false }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    const body = await req.json();
+    const username = isRecord(body) && typeof body.username === "string" ? body.username : "";
+    const password = isRecord(body) && typeof body.password === "string" ? body.password : "";
+
+    if (username !== Config.ADMIN_USERNAME || password !== Config.ADMIN_PASSWORD) {
+      return new Response(JSON.stringify({ error: "Invalid username or password" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const token = await createAdminSessionToken(username);
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": adminCookieHeader(token),
+      },
+    });
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid request body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+function handleAdminLogout(): Response {
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": clearAdminCookieHeader(),
+    },
+  });
+}
+
+async function handleAdminSession(req: Request): Promise<Response> {
+  return new Response(
+    JSON.stringify({
+      enabled: Config.ADMIN_AUTH_ENABLED,
+      authenticated: await isAdminAuthenticated(req),
+    }),
+    { headers: { "Content-Type": "application/json" } },
+  );
 }
 
 /**
@@ -1005,6 +1226,7 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
     "/setting",
     "/channel",
     "/keys",
+    "/login",
     "/index",
     "/ui",
     "/",
@@ -1021,6 +1243,17 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
       spaRoutes.includes(spaPath)
     }`,
   );
+
+  if (
+    Config.ADMIN_AUTH_ENABLED &&
+    method === "GET" &&
+    isAdminPagePath(spaPath) &&
+    !(await isAdminAuthenticated(req))
+  ) {
+    const next = encodeURIComponent(`${ctx.url.pathname}${ctx.url.search}`);
+    return Response.redirect(new URL(`/login?next=${next}`, req.url), 302);
+  }
+
   if (spaRoutes.includes(spaPath) && method === "GET") {
     try {
       const html = await Deno.readTextFile("web/index.html");
@@ -1087,6 +1320,34 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
     }
   }
 
+  // CORS 预检请求不参与管理端登录态校验
+  if (method === "OPTIONS") {
+    return handleCorsOptions();
+  }
+
+  if (isAdminAuthApi(pathname)) {
+    if (pathname === "/api/admin/login") {
+      if (method !== "POST") return handleMethodNotAllowed(method);
+      return await handleAdminLogin(req);
+    }
+    if (pathname === "/api/admin/logout") {
+      if (method !== "POST") return handleMethodNotAllowed(method);
+      return handleAdminLogout();
+    }
+    if (pathname === "/api/admin/session") {
+      if (method !== "GET") return handleMethodNotAllowed(method);
+      return await handleAdminSession(req);
+    }
+  }
+
+  if (
+    Config.ADMIN_AUTH_ENABLED &&
+    isProtectedAdminApi(pathname) &&
+    !(await isAdminAuthenticated(req))
+  ) {
+    return adminUnauthorizedResponse();
+  }
+
   // 画廊 API
   if (pathname === "/api/gallery") {
     if (method === "GET") {
@@ -1150,13 +1411,7 @@ async function routeRequest(req: Request, ctx: RequestContext): Promise<Response
     return handleUpdateCheck(req);
   }
 
-  // CORS 预检请求
-  if (method === "OPTIONS") {
-    return handleCorsOptions();
-  }
-
   // 统一鉴权
-  // 排除不需要鉴权的路径：/health, /admin, /index, /ui, /css/*, /js/*, /
   // 仅对 OpenAI 兼容的 API 接口进行鉴权
   if (pathname.startsWith("/v1/") && pathname !== "/v1/models") {
     const apiKey = req.headers.get("Authorization")?.replace("Bearer ", "").trim() || "";

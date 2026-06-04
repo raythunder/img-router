@@ -38,7 +38,18 @@ export async function apiFetch(url, options = {}) {
     };
   }
   const res = await fetch(url, options);
+  if (res.status === 401 && shouldRedirectToLogin(url)) {
+    const next = encodeURIComponent(globalThis.location.pathname + globalThis.location.search);
+    globalThis.location.href = `/login?next=${next}`;
+  }
   return res;
+}
+
+function shouldRedirectToLogin(url) {
+  const path = typeof url === "string" ? url : String(url);
+  if (!path.startsWith("/api/")) return false;
+  if (path.startsWith("/api/admin/")) return false;
+  return true;
 }
 
 /**

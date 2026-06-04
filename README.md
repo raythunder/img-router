@@ -196,6 +196,7 @@ lianwusuoai/img-router:latest
 - `PORT`：服务端口（默认 10001）
 - `API_TIMEOUT_MS`：上游请求超时（默认 60000）
 - `LOG_LEVEL`：日志等级（默认 info）
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：管理端登录账号和密码；两者同时非空时启用管理页登录保护
 - `DOUBAO_DEFAULT_COUNT`：Doubao 默认生成张数（默认 1）
 - `PROMPT_OPTIMIZER_BASE_URL` / `PROMPT_OPTIMIZER_API_KEY` /
   `PROMPT_OPTIMIZER_MODEL`：提示词优化器（OpenAI 兼容）
@@ -212,6 +213,13 @@ lianwusuoai/img-router:latest
 - `promptOptimizer`：提示词优化器配置
 - `hfModelMap`：HuggingFace 模型 → Space URL 映射
 - `storage.s3`：S3/R2 兼容存储配置（endpoint/bucket/accessKey/secretKey/region/publicUrl）
+
+**管理登录与 API 鉴权**：
+
+- 管理登录由 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 控制，只保护 Web 管理页和管理 API。
+- `system.globalAccessKey` 只用于后端模式下保护 OpenAI 兼容生图接口。
+- `/v1/images/*` 和 `/v1/chat/completions` 不要求管理登录 Cookie，仍按 `Global Access Key` 或
+  Provider Key 访问。
 
 ## 使用说明
 

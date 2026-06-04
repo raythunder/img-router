@@ -1,12 +1,15 @@
 # 前端目录结构
 
-> 管理端是原生 HTML/CSS/JavaScript SPA，不使用 React、Vue、构建器或组件库。Deno 后端直接读取 `web/index.html`、`web/css/*`、`web/js/*` 提供页面。
+> 管理端是原生 HTML/CSS/JavaScript SPA，不使用 React、Vue、构建器或组件库。Deno 后端直接读取
+> `web/index.html`、`web/css/*`、`web/js/*` 提供页面。
 
 ---
 
 ## 总览
 
-前端入口是 `web/index.html` 和 `web/js/main.js`。路由由 `web/js/modules/router.js` 基于 History API 实现，每个页面模块导出一个 `renderX(container)` 函数，直接把 HTML 写入 `#main-container` 并绑定事件。
+前端入口是 `web/index.html` 和 `web/js/main.js`。路由由 `web/js/modules/router.js` 基于 History API
+实现，每个页面模块导出一个 `renderX(container)` 函数，直接把 HTML 写入 `#main-container`
+并绑定事件。
 
 不要新增框架、打包配置或 JSX。新增页面应沿用现有 ES module 模式。
 
@@ -26,6 +29,7 @@ web/
         ├── router.js       # SPA 路由和页面清理
         ├── store.js        # 轻量全局配置状态
         ├── utils.js        # apiFetch、detectApiKey、debounce、escapeHtml
+        ├── login.js        # 管理端登录页
         ├── admin.js        # 仪表盘
         ├── setting.js      # 系统设置
         ├── channel.js      # Provider 渠道设置
@@ -40,9 +44,12 @@ web/
 
 ## 模块组织
 
-页面模块应只暴露渲染入口，例如 `renderChannel(container)`。页面内部辅助函数保持文件私有，除非多个页面复用，再放到 `utils.js`。
+页面模块应只暴露渲染入口，例如
+`renderChannel(container)`。页面内部辅助函数保持文件私有，除非多个页面复用，再放到 `utils.js`。
 
-跨页面状态目前只放系统配置和加载状态，见 `store.js`。页面自身表单状态、当前配置缓存和临时数组保留在模块级变量中，例如 `channel.js` 的 `currentConfig`、`channelRuntimeConfig`。
+跨页面状态目前只放系统配置和加载状态，见
+`store.js`。页面自身表单状态、当前配置缓存和临时数组保留在模块级变量中，例如 `channel.js` 的
+`currentConfig`、`channelRuntimeConfig`。
 
 新增路由需要同时更新：
 
@@ -50,13 +57,16 @@ web/
 2. `web/js/modules/router.js` 的 `routes`。
 3. `src/app.ts` 的 `spaRoutes`，否则刷新页面会 404。
 
+登录页例外：`/login` 只需要在 `router.js` 和 `src/app.ts` 注册，不加入侧边栏导航。
+
 ---
 
 ## 命名约定
 
 - 前端文件使用 kebab-case 或现有短名：`prompt-optimizer.js`、`key-manager.js`、`gallery.js`。
 - 页面渲染函数使用 `renderX`：`renderAdmin`、`renderSetting`、`renderGallery`。
-- DOM id 和 class 沿用现有语义：`main-container`、`modal-container`、`nav-item`、`card`、`status-pill`。
+- DOM id 和 class
+  沿用现有语义：`main-container`、`modal-container`、`nav-item`、`card`、`status-pill`。
 - Provider 展示名必须与后端一致：`ModelScope` 不能写成 `modelscope`。
 
 ---

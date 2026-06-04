@@ -3,7 +3,7 @@
   "name": "06-04-add-admin-login-page",
   "title": "Add Admin Login Page",
   "description": "Add environment-configured admin login protection for management pages without changing Global Access Key access to image APIs",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
